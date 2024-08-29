@@ -1,5 +1,5 @@
 FROM docker.io/node:lts-alpine
-LABEL maintainer Lyas Spiehler
+LABEL maintainer="Lyas Spiehler"
 
 RUN apk add --no-cache --upgrade git
 
