@@ -7,7 +7,7 @@ RUN mkdir -p /var/node
 
 WORKDIR /var/node
 
-ARG CACHE_DATE=2024-08-29
+ARG CACHE_DATE=2024-08-29v1
 
 RUN git clone https://github.com/lspiehler/prometheus-kuiper-sd.git
 

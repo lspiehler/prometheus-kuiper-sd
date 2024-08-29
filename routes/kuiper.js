@@ -45,6 +45,10 @@ router.get('/', function(req, res, next) {
     if(req.query.hasOwnProperty('application')) {
         application = req.query.application;
     }
+    let groupId = false;
+    if(req.query.hasOwnProperty('groupId')) {
+        groupId = req.query.groupId;
+    }
     targeturl = url.parse(req.query.target);
     //console.log(targeturl);
     if(targeturl.protocol!='https:') {
@@ -77,6 +81,9 @@ router.get('/', function(req, res, next) {
             if(application) {
                 path = '/Kuiper/api/machines/v1?application=' + req.query.application
             }
+            if(groupId) {
+                path = '/Kuiper/api/machines/v1?groupId=' + req.query.groupId
+            }
             let options = {
                 host: targeturl.host,
                 port: targeturl.port,
@@ -99,7 +106,7 @@ router.get('/', function(req, res, next) {
                     return;
                 } else {
                     let data = JSON.parse(resp.body);
-                    getGroups(targeturl, cred, application, function(err, groups) {
+                    getGroups(targeturl, cred, application, groupId, function(err, groups) {
                         if(err) {
                             res.status(400).json({
                                 error: {
@@ -123,10 +130,14 @@ router.get('/', function(req, res, next) {
     });
 });
 
-var getGroups = function(targeturl, cred, application, callback) {
+var getGroups = function(targeturl, cred, application, groupId, callback) {
     let path = '/Kuiper/api/groups/v1';
     if(application) {
         path = '/Kuiper/api/groups/v1/' + application
+    }
+    if(groupId && application) {
+        //unable to lookup single group id without knowing the application
+        path = '/Kuiper/api/groups/v1/' + application + '/' + groupId;
     }
     let options = {
         host: targeturl.host,
@@ -169,7 +180,7 @@ var normalize = function(data, groups, options) {
         for(let j = 0; j < options.labels.length; j++) {
             if(options.labels[j] == 'groups') {
                 if(groups.hasOwnProperty(data[i].id)) {
-                    labels.push(groups[data[i].id].join(''));
+                    labels.push(groups[data[i].id].join(','));
                 }
             } else {
                 if(data[i].attributes.hasOwnProperty(options.labels[j])) {
