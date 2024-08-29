@@ -41,14 +41,9 @@ router.get('/', function(req, res, next) {
         });
         return;
     }
-    if(req.query.hasOwnProperty('application') === false) {
-        res.status(400).json({
-            error: {
-                code: 400,
-                message: 'A application must be specified'
-            }
-        });
-        return;
+    let application = false;
+    if(req.query.hasOwnProperty('application')) {
+        application = req.query.application;
     }
     targeturl = url.parse(req.query.target);
     //console.log(targeturl);
@@ -78,11 +73,15 @@ router.get('/', function(req, res, next) {
             });
             return;
         } else {
+            let path = '/Kuiper/api/machines/v1';
+            if(application) {
+                path = '/Kuiper/api/machines/v1?application=' + req.query.application
+            }
             let options = {
                 host: targeturl.host,
                 port: targeturl.port,
                 rejectUnauthorized: false,
-                path: '/Kuiper/api/machines/v2?application=' + req.query.application,
+                path: path,
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -91,36 +90,105 @@ router.get('/', function(req, res, next) {
             }
             https.request({ options: options }, function(err, resp) {
                 if(err) {
-                    res.json(resp);
-                    //172.28.220.158
+                    res.status(400).json({
+                        error: {
+                            code: 400,
+                            message: err
+                        }
+                    });
+                    return;
                 } else {
                     let data = JSON.parse(resp.body);
-                    let prometheusjson = normalize(data.data, {
-                        labels: labels,
-                        maintanancemode: maintanancemode
+                    getGroups(targeturl, cred, application, function(err, groups) {
+                        if(err) {
+                            res.status(400).json({
+                                error: {
+                                    code: 400,
+                                    message: err
+                                }
+                            });
+                            return;
+                        } else {
+                            let prometheusjson = normalize(data.data, groups, {
+                                labels: labels,
+                                maintanancemode: maintanancemode
+                            });
+                            res.setHeader('X-Prometheus-Refresh-Interval-Seconds', '120');
+                            res.json(prometheusjson);
+                        }
                     });
-                    res.setHeader('X-Prometheus-Refresh-Interval-Seconds', '120');
-                    res.json(prometheusjson);
                 }
             });
         }
     });
 });
 
-var normalize = function(data, options) {
+var getGroups = function(targeturl, cred, application, callback) {
+    let path = '/Kuiper/api/groups/v1';
+    if(application) {
+        path = '/Kuiper/api/groups/v1/' + application
+    }
+    let options = {
+        host: targeturl.host,
+        port: targeturl.port,
+        rejectUnauthorized: false,
+        path: path,
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + cred.token
+        }
+    }
+    https.request({ options: options }, function(err, resp) {
+        if(err) {
+            callback(err, false);
+        } else {
+            let data = JSON.parse(resp.body);
+            //console.log(data);
+            let groupht = {}
+            for(let i = 0; i < data.data.length; i++) {
+                if(data.data[i].relationships.hasOwnProperty('servers')) {
+                    for(let j = 0; j < data.data[i].relationships.servers.ids.length; j++) {
+                        if(groupht.hasOwnProperty(data.data[i].relationships.servers.ids[j])) {
+                            groupht[data.data[i].relationships.servers.ids[j]].push(data.data[i].attributes.name);
+                        } else {
+                            groupht[data.data[i].relationships.servers.ids[j]] = [data.data[i].attributes.name]
+                        }
+                    }
+                }
+            }
+            callback(false, groupht);
+        }
+    });
+}
+
+var normalize = function(data, groups, options) {
     let kt = [];
     for(let i = 0; i < data.length; i++) {
         let labels = [];
         for(let j = 0; j < options.labels.length; j++) {
-            if(data[i].attributes.hasOwnProperty(options.labels[j])) {
-                if(data[i].attributes[options.labels[j]]) {
-                    labels.push(data[i].attributes[options.labels[j]]);
+            if(options.labels[j] == 'groups') {
+                if(groups.hasOwnProperty(data[i].id)) {
+                    labels.push(groups[data[i].id].join(''));
                 }
             } else {
-                labels.push('');
+                if(data[i].attributes.hasOwnProperty(options.labels[j])) {
+                    if(data[i].attributes[options.labels[j]]) {
+                        labels.push(data[i].attributes[options.labels[j]]);
+                    }
+                } else {
+                    labels.push('');
+                }
             }
         }
-        if(options.maintanancemode == 'any' || data[i].attributes.maintenanceMode.toLowerCase() == options.maintanancemode.toLowerCase()) {
+        if(data[i].attributes.hasOwnProperty('maintenanceMode') && data[i].attributes.maintenanceMode) {
+            if(options.maintanancemode == 'any' || data[i].attributes.maintenanceMode.toLowerCase() == options.maintanancemode.toLowerCase()) {
+                kt.push({
+                    target: data[i].attributes.name.toLowerCase(),
+                    labels: labels
+                });
+            }
+        } else {
             kt.push({
                 target: data[i].attributes.name.toLowerCase(),
                 labels: labels
@@ -135,7 +203,14 @@ var normalize = function(data, options) {
             let commonlabels = {}
             for(let j = 0; j < options.labels.length; j++) {
                 if(kt[i].labels[j]!='') {
-                    commonlabels[options.labels[j]] = kt[i].labels[j];
+                    if(typeof kt[i].labels[j] == 'string') {
+                        commonlabels[options.labels[j]] = kt[i].labels[j];
+                    } else if(typeof kt[i].labels[j] == 'object') {
+                        //console.log(kt[i].labels[j]);
+                        commonlabels[options.labels[j]] = kt[i].labels[j].join(',');
+                    } else {
+                        //console.log('Dropping label ' + options.labels[j] + ' on ' + kt[i].target + ' with value of ' + kt[i].labels[j]);
+                    }
                 }
             }
             labelht[labelhash] = {
