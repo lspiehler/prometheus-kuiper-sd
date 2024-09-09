@@ -288,14 +288,21 @@ var credentialHandler = function(params, force, callback) {
                 console.log(err);
                 callback(err, false);
             } else {
-                let body = JSON.parse(resp.body);
-                let time = new Date().getTime();
-                let token = {
-                    token: body.token,
-                    expiration: time + parseInt(body.expires_in)
+                if(resp.error) {
+                    console.log(resp.error);
+                    callback(resp.error, false);
+                } else if(resp.statusCode == 401) {
+                    callback('invalid credentials', false);
+                } else {
+                    let body = JSON.parse(resp.body);
+                    let time = new Date().getTime();
+                    let token = {
+                        token: body.token,
+                        expiration: time + parseInt(body.expires_in)
+                    }
+                    credentialcache[params.query.target] = token;
+                    callback(false, token);
                 }
-                credentialcache[params.query.target] = token;
-                callback(false, token);
             }
         });
     }
