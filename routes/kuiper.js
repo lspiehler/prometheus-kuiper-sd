@@ -49,6 +49,16 @@ router.get('/', function(req, res, next) {
     if(req.query.hasOwnProperty('groupId')) {
         groupId = req.query.groupId;
     }
+    let debug = false;
+    if(req.query.hasOwnProperty('debug')) {
+        if(req.query.debug == 'true') {
+            debug = true;
+        }
+    }
+    let machineapidebug = {
+        request: null,
+        response: null
+    }
     targeturl = url.parse(req.query.target);
     //console.log(targeturl);
     if(targeturl.protocol!='https:') {
@@ -96,6 +106,8 @@ router.get('/', function(req, res, next) {
                 }
             }
             https.request({ options: options }, function(err, resp) {
+                machineapidebug.request = options;
+                machineapidebug.response = resp;
                 if(err) {
                     res.status(400).json({
                         error: {
@@ -106,7 +118,8 @@ router.get('/', function(req, res, next) {
                     return;
                 } else {
                     let data = JSON.parse(resp.body);
-                    getGroups(targeturl, cred, application, groupId, function(err, groups) {
+                    machineapidebug.response.body = data;
+                    getGroups(targeturl, cred, application, groupId, function(err, groups, groupsapidebug) {
                         if(err) {
                             res.status(400).json({
                                 error: {
@@ -121,7 +134,11 @@ router.get('/', function(req, res, next) {
                                 maintanancemode: maintanancemode
                             });
                             res.setHeader('X-Prometheus-Refresh-Interval-Seconds', '120');
-                            res.json(prometheusjson);
+                            if(debug) {
+                                res.send(JSON.stringify(prometheusjson) + '<br /><br />' + JSON.stringify(machineapidebug) + '<br /><br />' + JSON.stringify(groupsapidebug));
+                            } else {
+                                res.json(prometheusjson);
+                            }
                         }
                     });
                 }
@@ -131,6 +148,10 @@ router.get('/', function(req, res, next) {
 });
 
 var getGroups = function(targeturl, cred, application, groupId, callback) {
+    let groupsapidebug = {
+        request: null,
+        response: null
+    }
     let path = '/Kuiper/api/groups/v1';
     if(application) {
         path = '/Kuiper/api/groups/v1/' + application
@@ -151,10 +172,13 @@ var getGroups = function(targeturl, cred, application, groupId, callback) {
         }
     }
     https.request({ options: options }, function(err, resp) {
+        groupsapidebug.request = options;
+        groupsapidebug.response = resp;
         if(err) {
-            callback(err, false);
+            callback(err, false, groupsapidebug);
         } else {
             let data = JSON.parse(resp.body);
+            groupsapidebug.response.body = data;
             //console.log(data);
             let groupht = {}
             for(let i = 0; i < data.data.length; i++) {
@@ -168,7 +192,7 @@ var getGroups = function(targeturl, cred, application, groupId, callback) {
                     }
                 }
             }
-            callback(false, groupht);
+            callback(false, groupht, groupsapidebug);
         }
     });
 }
