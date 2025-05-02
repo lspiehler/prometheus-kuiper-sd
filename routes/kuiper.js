@@ -55,6 +55,10 @@ router.get('/', function(req, res, next) {
             debug = true;
         }
     }
+    let domain = '';
+    if(req.query.hasOwnProperty('domain')) {
+        domain = '.' + req.query.domain;
+    }
     let machineapidebug = {
         request: null,
         response: null
@@ -129,7 +133,7 @@ router.get('/', function(req, res, next) {
                             });
                             return;
                         } else {
-                            let prometheusjson = normalize(data.data, groups, {
+                            let prometheusjson = normalize(data.data, groups, domain, {
                                 labels: labels,
                                 maintanancemode: maintanancemode
                             });
@@ -197,7 +201,7 @@ var getGroups = function(targeturl, cred, application, groupId, callback) {
     });
 }
 
-var normalize = function(data, groups, options) {
+var normalize = function(data, groups, domain, options) {
     let kt = [];
     for(let i = 0; i < data.length; i++) {
         let labels = [];
@@ -219,13 +223,13 @@ var normalize = function(data, groups, options) {
         if(data[i].attributes.hasOwnProperty('maintenanceMode') && data[i].attributes.maintenanceMode) {
             if(options.maintanancemode == 'any' || data[i].attributes.maintenanceMode.toLowerCase() == options.maintanancemode.toLowerCase()) {
                 kt.push({
-                    target: data[i].attributes.name.toLowerCase(),
+                    target: data[i].attributes.name.toLowerCase() + domain.toLowerCase(),
                     labels: labels
                 });
             }
         } else {
             kt.push({
-                target: data[i].attributes.name.toLowerCase(),
+                target: data[i].attributes.name.toLowerCase() + domain.toLowerCase(),
                 labels: labels
             });
         }
