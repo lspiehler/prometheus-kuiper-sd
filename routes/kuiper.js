@@ -186,12 +186,14 @@ var getGroups = function(targeturl, cred, application, groupId, callback) {
             //console.log(data);
             let groupht = {}
             for(let i = 0; i < data.data.length; i++) {
-                if(data.data[i].relationships.hasOwnProperty('servers')) {
-                    for(let j = 0; j < data.data[i].relationships.servers.ids.length; j++) {
-                        if(groupht.hasOwnProperty(data.data[i].relationships.servers.ids[j])) {
-                            groupht[data.data[i].relationships.servers.ids[j]].push(data.data[i].attributes.name);
-                        } else {
-                            groupht[data.data[i].relationships.servers.ids[j]] = [data.data[i].attributes.name]
+                if(data.data[i].hasOwnProperty('relationships')) {
+                    if(data.data[i].relationships.hasOwnProperty('servers')) {
+                        for(let j = 0; j < data.data[i].relationships.servers.ids.length; j++) {
+                            if(groupht.hasOwnProperty(data.data[i].relationships.servers.ids[j])) {
+                                groupht[data.data[i].relationships.servers.ids[j]].push(data.data[i].attributes.name);
+                            } else {
+                                groupht[data.data[i].relationships.servers.ids[j]] = [data.data[i].attributes.name]
+                            }
                         }
                     }
                 }
