@@ -121,6 +121,15 @@ router.get('/', function(req, res, next) {
                     });
                     return;
                 } else {
+                    if(resp.statusCode != 200) {
+                        res.status(resp.statusCode).json({
+                            error: {
+                                code: resp.statusCode,
+                                message: 'Error retrieving machines from Kuiper API: ' + JSON.stringify(resp)
+                            }
+                        });
+                        return;
+                    }
                     let data = JSON.parse(resp.body);
                     machineapidebug.response.body = data;
                     getGroups(targeturl, cred, application, groupId, function(err, groups, groupsapidebug) {
@@ -321,7 +330,7 @@ var credentialHandler = function(params, force, callback) {
                 if(resp.error) {
                     console.log(resp.error);
                     callback(resp.error, false);
-                } else if(resp.statusCode == 401) {
+                } else if(resp.statusCode != 200) {
                     callback('invalid credentials', false);
                 } else {
                     let body = JSON.parse(resp.body);
